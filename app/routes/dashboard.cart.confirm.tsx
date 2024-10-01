@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useLoaderData, Form } from "@remix-run/react";
 import {
   ActionFunctionArgs,
-  LoaderFunctionArgs,
   json,
+  LoaderFunctionArgs,
   redirect,
 } from "@remix-run/node";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
+import { useLoaderData, Form } from "@remix-run/react";
+import { useState, useEffect } from "react";
+import { useFetcher } from "@remix-run/react";
+import { getUser } from "@/utils/session.server";
+import { db } from "@/db/index.server";
+import { orders, orderItems, products, Users } from "@/db/schema";
+import { Card, CardHeader, CardContent, CardTitle } from "~/components/ui/card";
 import { Label } from "~/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Input } from "~/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -17,16 +20,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { getUser } from "@/utils/session.server";
-import { db } from "@/db/index.server";
-import { orders, orderItems, Users, products } from "@/db/schema";
+import { Button } from "~/components/ui/button";
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await getUser(request);
   if (!user) {
     return redirect("/login");
   }
-  return json({ user });
+  return json({ user, RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -72,14 +79,15 @@ export async function action({ request }: ActionFunctionArgs) {
     }
   }
 
-  return redirect("/dashboard/myorders");
+  return json({ orderId: order.id, totalAmount });
 }
 
 export default function CartConfirmationPage() {
-  const { user } = useLoaderData<typeof loader>();
+  const { user, RAZORPAY_KEY_ID } = useLoaderData<typeof loader>();
   const [cart, setCart] = useState<{ [key: string]: number }>({});
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [totalAmount, setTotalAmount] = useState(0);
+  const fetcher = useFetcher();
 
   useEffect(() => {
     const savedCart = localStorage.getItem("cart");
@@ -101,6 +109,68 @@ export default function CartConfirmationPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (fetcher.data && fetcher.data.orderId && fetcher.data.totalAmount) {
+      handlePayment(fetcher.data.orderId, fetcher.data.totalAmount);
+    }
+  }, [fetcher.data]);
+
+  const handlePayment = async (orderId: string, amount: number) => {
+    const response = await fetch("/api/create-razorpay-order", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ orderId, amount }),
+    });
+    const data = await response.json();
+
+    const options = {
+      key: RAZORPAY_KEY_ID,
+      amount: amount * 100,
+      currency: "INR",
+      name: "Farmer's Market",
+      description: "Purchase from Farmer's Market",
+      order_id: data.razorpayOrderId,
+      handler: async function (response: any) {
+        // Handle successful payment
+        const result = await fetch("/api/payment-verification", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            orderId: orderId,
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpayOrderId: response.razorpay_order_id,
+            razorpaySignature: response.razorpay_signature,
+          }),
+        });
+
+        if (result.ok) {
+          // Payment verified successfully
+          alert("Payment successful!");
+          // Clear the cart and redirect to order confirmation page
+          localStorage.removeItem("cart");
+          window.location.href = `/dashboard/myorders`;
+        } else {
+          // Payment verification failed
+          alert("Payment verification failed. Please contact support.");
+        }
+      },
+      prefill: {
+        name: user.name,
+        email: user.email,
+      },
+      theme: {
+        color: "#3399cc",
+      },
+    };
+
+    const razorpayInstance = new window.Razorpay(options);
+    razorpayInstance.open();
+  };
+
   return (
     <div className="container mx-auto">
       <Card>
@@ -108,7 +178,7 @@ export default function CartConfirmationPage() {
           <CardTitle>Order Confirmation</CardTitle>
         </CardHeader>
         <CardContent>
-          <Form method="post" className="space-y-6">
+          <fetcher.Form method="post" className="space-y-6">
             <input type="hidden" name="cartData" value={JSON.stringify(cart)} />
             <input
               type="hidden"
@@ -131,14 +201,13 @@ export default function CartConfirmationPage() {
               </div>
               <div>
                 <Label htmlFor="paymentMethod">Payment Method</Label>
-                <Select name="paymentMethod" defaultValue="cash">
+                <Select name="paymentMethod" defaultValue="razorpay">
                   <SelectTrigger>
                     <SelectValue placeholder="Select payment method" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="razorpay">Razorpay</SelectItem>
                     <SelectItem value="cash">Cash on Delivery</SelectItem>
-                    <SelectItem value="card">Credit/Debit Card</SelectItem>
-                    <SelectItem value="upi">UPI</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -158,9 +227,9 @@ export default function CartConfirmationPage() {
             </div>
 
             <Button type="submit" className="w-full">
-              Confirm Order
+              Proceed to Payment
             </Button>
-          </Form>
+          </fetcher.Form>
         </CardContent>
       </Card>
     </div>

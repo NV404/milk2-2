@@ -40,6 +40,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script defer src="https://checkout.razorpay.com/v1/checkout.js" />
         <Meta />
         <Links />
       </head>

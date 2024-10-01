@@ -30,13 +30,9 @@ export default function Dashboard() {
           <SheetContent side="left">
             <nav className="flex flex-col space-y-4">
               <a href="/dashboard">Dashboard</a>
-              <a href="/dashboard/inventory">Inventory</a>
-              <a href="/dashboard/orders">Orders</a>
-              <a href="/dashboard/analytics">Analytics</a>
-              <a href="/dashboard/marketplace">Marketplace</a>
-              <a href="/dashboard/learning">Learning Center</a>
-              <a href="/dashboard/community">Farmer Community</a>
-              <a href="/dashboard/support">Support</a>
+              <a href="/dashboard/myorders">Orders</a>
+              <a href="/dashboard/cart">Cart</a>
+              <a href="/dashboard/bidding">Biddings</a>
             </nav>
           </SheetContent>
         </Sheet>

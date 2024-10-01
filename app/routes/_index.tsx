@@ -1,6 +1,17 @@
+import { Users } from "@/db/schema";
+import { getUser } from "@/utils/session.server";
+import { LoaderFunctionArgs, redirect } from "@remix-run/node";
 import { Link } from "@remix-run/react";
 import React from "react";
 import { Button } from "~/components/ui/button";
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const user = (await getUser(request)) as Users;
+  if (user) {
+    return redirect("/dashboard");
+  }
+  return redirect("/login");
+}
 
 const CreativeLandingPage = () => {
   return (

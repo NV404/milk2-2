@@ -1,6 +1,6 @@
 import React from "react";
 import { json, LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData, Link } from "@remix-run/react";
+import { useLoaderData, Link, useLocation } from "@remix-run/react";
 import { db } from "@/db/index.server";
 import { products, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -33,6 +33,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function BiddableItemsList() {
+  const location = useLocation();
   const { biddableProducts } = useLoaderData<typeof loader>();
 
   const navItems = [
